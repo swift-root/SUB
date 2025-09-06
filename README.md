@@ -1,2 +1,2 @@
-# EUB
-Ellen User Bot 
+# SUB
+Swift User Bot 
