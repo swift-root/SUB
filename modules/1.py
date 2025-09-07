@@ -21,8 +21,16 @@ async def ping(client, message):
     end_time = time.time() - start_time
     hours, rem = divmod(end_time, 3600)
     minutes, seconds = divmod(rem, 60)
+    args = message.text.split()
+    force_premium = len(args) > 1 and args[1].lower() == 'prem'
+    me = await client.get_me()
+    has_premium = getattr(me, 'is_premium', False) or force_premium
+    if has_premium:
+        text = f"<b><emoji id=5920515922505765329>⚡️</emoji> PING: <code>{ping_time:.2f} ms</code>\n<emoji id=6037268453759389862>⏲️</emoji> Аптайм: <code>{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}</code></b>"
+    else:
+        text = f"<b>🚀 PING: <code>{ping_time:.2f} ms</code>\n└─  Аптайм: <code>{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}</code></b>"
 
-    await message.edit(f"<b><emoji id=5445284980978621387>🚀</emoji> PING: <code>{ping_time:.2f} ms</code>\n<emoji id=6037268453759389862>⏲️</emoji> Аптайм: <code>{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}</code></b>")   
+    await message.edit(text)    
 
 @app.on_message(filters.command('info', prefixes=prefix) & filters.user(allow))
 async def info_command(client: Client, message: Message):
@@ -1054,3 +1062,4 @@ modules_help['System'] = {
   "update": "Обновить бота",
   "restart": "Перезапустить бота",
 }
+
