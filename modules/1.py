@@ -9,19 +9,18 @@ from utils.func import *
 start_time = time.time()
 system = platform.system()
 
+global allow 
+
 async def is_owner(_, client, message):
     try:
         user_id = message.from_user.id
-        # Проверяем в базе данных
         db_owners = get_owners_from_db()
         return user_id in db_owners
     except:
         return False
 
-# Создаем кастомный фильтр
 owner_filter = filters.create(is_owner)
 
-# Функция для получения владельцев из БД
 def get_owners_from_db():
     try:
         settings = load_settings()
@@ -29,7 +28,7 @@ def get_owners_from_db():
     except:
         return []
 
-# Функция для обновления владельцев в БД
+
 def update_owners_in_db(new_owners):
     try:
         settings = load_settings()
@@ -41,7 +40,6 @@ def update_owners_in_db(new_owners):
         print(f"Ошибка при обновлении владельцев в БД: {e}")
         return False
 
-# Обновляем глобальную переменную allow из БД при загрузке
 allow = get_owners_from_db()
 
 @app.on_message(filters.command("ping", prefix) & owner_filter)
@@ -72,7 +70,7 @@ async def info_command(client: Client, message: Message):
     await message.delete()
 
     try:
-        # Проверяем есть ли параметр prem
+
         args = message.text.split()
         force_premium = len(args) > 1 and args[1].lower() == 'prem'
         
@@ -185,14 +183,14 @@ async def info_command(client: Client, message: Message):
 async def modules_help_command(client: Client, message: Message):
     args = message.text.split()
     
-    force_premium = len(args) > 1 and args[-1].lower() == 'prem'  # Проверяем последний аргумент
+    force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     
     me = await client.get_me()
     has_premium = getattr(me, 'is_premium', False) or force_premium
     
-    # Если есть больше 1 аргумента и последний не 'prem', или есть только 'prem'
+
     if len(args) > 1 and not (len(args) == 2 and args[1].lower() == 'prem'):
-        # Получаем имя модуля (исключаем 'prem' если он есть)
+
         module_query = args[1].strip().lower() if args[1].lower() != 'prem' else args[2].strip().lower() if len(args) > 2 else ""
         
         exact_match = None
@@ -209,11 +207,11 @@ async def modules_help_command(client: Client, message: Message):
             module_info = modules_info[exact_match]
             commands = modules_help.get(exact_match, {})
 
-            # Определяем формат названия модуля
+ 
             name_format = "<b>{}</b>" if module_info.get("name", "").lower() == "system" else "<code>{}</code>"
             formatted_name = name_format.format(exact_match)
 
-            # Формируем ответ в зависимости от has_premium (учитывает force_premium!)
+
             if has_premium:
                 response = (
                     f"<emoji id=6030848053177486888>❓</emoji> <b>Помощь по модулю {formatted_name}</b>\n\n"
@@ -818,7 +816,7 @@ async def manage_owners(client: Client, message: Message):
     subcommand = args[1].lower()
     
     if subcommand == "reload":
-        # Перезагрузить владельцев из БД
+
         global allow
         allow = get_owners_from_db()
         if has_premium:
@@ -828,7 +826,7 @@ async def manage_owners(client: Client, message: Message):
         return
     
     elif subcommand == "add" and len(args) >= 3:
-        # Добавить владельца
+
         try:
             if message.reply_to_message:
                 user = message.reply_to_message.from_user
@@ -861,7 +859,7 @@ async def manage_owners(client: Client, message: Message):
             await message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Ошибка: {e}")
     
     elif subcommand == "remove" and len(args) >= 3:
-        # Удалить владельца
+
         try:
             if message.reply_to_message:
                 user_id = message.reply_to_message.from_user.id
@@ -901,7 +899,7 @@ async def manage_owners(client: Client, message: Message):
             f"<code>{prefix}owners remove [user]</code> - удалить владельца"
         )
 
-# Обновляем команды addowner и delowner для работы с БД
+
 @app.on_message(filters.command("addowner", prefix) & owner_filter)
 async def add_owner(client: Client, message: Message):
     args = message.text.split()
@@ -1230,4 +1228,5 @@ modules_help['System'] = {
     "update": "Обновить бота",
     "restart": "Перезапустить бота",
 }
+
 
