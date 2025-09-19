@@ -13,6 +13,21 @@ async def is_allowed(client, message):
     me = await client.get_me()
     return message.from_user.id == me.id or message.from_user.id in allow
 
+from utils.imports import *
+from utils.func import *
+
+#meta name: System
+#meta developer: @lscmods & @lscuserbot
+#meta description: Системные модули
+#meta img: https://i.pinimg.com/736x/1e/57/41/1e5741cd9716634b91d34923d4afad55.jpg
+
+start_time = time.time()
+system = platform.system()
+
+async def is_allowed(client, message):
+    me = await client.get_me()
+    return message.from_user.id == me.id
+
 @app.on_message(filters.command("ping", prefix))
 async def ping(client, message):
     if not await is_allowed(client, message):
@@ -37,7 +52,7 @@ async def ping(client, message):
     else:
         text = f"<b>🚀 PING: <code>{ping_time:.2f} ms</code>\n└─  Аптайм: <code>{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}</code></b>"
 
-    await message.edit(text)    
+    await message.edit(text)        
 
 @app.on_message(filters.command('info', prefixes=prefix))
 async def info_command(client: Client, message: Message):
@@ -1102,3 +1117,4 @@ modules_help['System'] = {
   "update": "Обновить бота",
   "restart": "Перезапустить бота",
 }
+
