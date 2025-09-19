@@ -9,8 +9,15 @@ from utils.func import *
 start_time = time.time()
 system = platform.system()
 
-@app.on_message(filters.command("ping", prefix) & filters.user(allow))
+async def is_allowed(client, message):
+    me = await client.get_me()
+    return message.from_user.id == me.id or message.from_user.id in allow
+
+@app.on_message(filters.command("ping", prefix))
 async def ping(client, message):
+    if not await is_allowed(client, message):
+        return
+    
     starts_time = time.time()
     await message.edit("<emoji id=5445284980978621387>🚀</emoji>")
     ends_time = time.time()
@@ -32,12 +39,14 @@ async def ping(client, message):
 
     await message.edit(text)    
 
-@app.on_message(filters.command('info', prefixes=prefix) & filters.user(allow))
+@app.on_message(filters.command('info', prefixes=prefix))
 async def info_command(client: Client, message: Message):
+    if not await is_allowed(client, message):
+        return
+    
     await message.delete()
 
     try:
-        # Проверяем есть ли параметр prem
         args = message.text.split()
         force_premium = len(args) > 1 and args[1].lower() == 'prem'
         
@@ -146,18 +155,18 @@ async def info_command(client: Client, message: Message):
         print(error_msg)
         await client.send_message(message.chat.id, error_msg)
 
-@app.on_message(filters.command("help", prefix) & filters.user(allow))
+@app.on_message(filters.command("help", prefix))
 async def modules_help_command(client: Client, message: Message):
+    if not await is_allowed(client, message):
+        return
+    
     args = message.text.split()
     
-    force_premium = len(args) > 1 and args[-1].lower() == 'prem'  # Проверяем последний аргумент
-    
+    force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
     has_premium = getattr(me, 'is_premium', False) or force_premium
     
-    # Если есть больше 1 аргумента и последний не 'prem', или есть только 'prem'
     if len(args) > 1 and not (len(args) == 2 and args[1].lower() == 'prem'):
-        # Получаем имя модуля (исключаем 'prem' если он есть)
         module_query = args[1].strip().lower() if args[1].lower() != 'prem' else args[2].strip().lower() if len(args) > 2 else ""
         
         exact_match = None
@@ -174,11 +183,9 @@ async def modules_help_command(client: Client, message: Message):
             module_info = modules_info[exact_match]
             commands = modules_help.get(exact_match, {})
 
-            # Определяем формат названия модуля
             name_format = "<b>{}</b>" if module_info.get("name", "").lower() == "system" else "<code>{}</code>"
             formatted_name = name_format.format(exact_match)
 
-            # Формируем ответ в зависимости от has_premium (учитывает force_premium!)
             if has_premium:
                 response = (
                     f"<emoji id=6030848053177486888>❓</emoji> <b>Помощь по модулю {formatted_name}</b>\n\n"
@@ -198,7 +205,7 @@ async def modules_help_command(client: Client, message: Message):
                     f"> <b>Команды:</b>\n"
                 )
                 for cmd, desc in commands.items():
-                    response += f"  ▸ <code>{prefix}{cmd}</code> — {desc}\n"
+                    response += f"   ▸ <code>{prefix}{cmd}</code> — {desc}\n"
 
             try:
                 if module_info["img"]:
@@ -274,8 +281,11 @@ async def modules_help_command(client: Client, message: Message):
         
         await message.edit_text(response, disable_web_page_preview=True)
 
-@app.on_message(filters.command("lm", prefixes=prefix) & filters.user(allow))
+@app.on_message(filters.command("lm", prefixes=prefix))
 async def load_module(client: Client, message: Message):
+    if not await is_allowed(client, message):
+        return
+    
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -389,8 +399,11 @@ async def load_module(client: Client, message: Message):
     if meta_data["libs"]:
         await install_libraries(msg, meta_data["name"], meta_data["libs"])
 
-@app.on_message(filters.command("dlm", prefixes=prefix) & filters.user(allow))
+@app.on_message(filters.command("dlm", prefixes=prefix))
 async def download_load_module(client: Client, message: Message):
+    if not await is_allowed(client, message):
+        return
+    
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -528,8 +541,11 @@ async def download_load_module(client: Client, message: Message):
         if 'temp_path' in locals() and os.path.exists(temp_path):
             os.remove(temp_path)
 
-@app.on_message(filters.command("um", prefixes=prefix) & filters.user(allow))
+@app.on_message(filters.command("um", prefixes=prefix))
 async def download_module(client: Client, message: Message):
+    if not await is_allowed(client, message):
+        return
+    
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -610,9 +626,12 @@ async def download_module(client: Client, message: Message):
         await message.edit_text(help_text)
     else:
         await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Модуль не найден")
-
-@app.on_message(filters.command("dm", prefixes=prefix) & filters.user(allow))
+        
+@app.on_message(filters.command("dm", prefixes=prefix))
 async def delete_module(client: Client, message: Message):
+    if not await is_allowed(client, message):
+        return
+    
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -701,8 +720,11 @@ async def delete_module(client: Client, message: Message):
     else:
         await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Не удалось удалить модуль")
 
-@app.on_message(filters.command("restart", prefix) & filters.user(allow))
+@app.on_message(filters.command("restart", prefix))
 async def restart_bot(client: Client, message: Message):
+    if not await is_allowed(client, message):
+        return
+    
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -718,8 +740,11 @@ async def restart_bot(client: Client, message: Message):
     
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
-@app.on_message(filters.command("setprefix", prefix) & filters.user(allow))
+@app.on_message(filters.command("setprefix", prefix))
 async def set_prefix(client: Client, message: Message):
+    if not await is_allowed(client, message):
+        return
+    
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -743,8 +768,11 @@ async def set_prefix(client: Client, message: Message):
         await message.edit_text(f"[✅] Префикс изменен на <code>{new_prefix}</code>\n<blockquote><i>Начинаю перезагрузку...</blockquote></i>")
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
-@app.on_message(filters.command("addowner", prefix) & filters.user(allow))
+@app.on_message(filters.command("addowner", prefix))
 async def add_owner(client: Client, message: Message):
+    if not await is_allowed(client, message):
+        return
+    
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -785,8 +813,11 @@ async def add_owner(client: Client, message: Message):
     except Exception as e:
         await message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Ошибка: {e}")
 
-@app.on_message(filters.command("delowner", prefix) & filters.user(allow))
+@app.on_message(filters.command("delowner", prefix))
 async def del_owner(client: Client, message: Message):
+    if not await is_allowed(client, message):
+        return
+    
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -823,8 +854,11 @@ async def del_owner(client: Client, message: Message):
     except Exception as e:
         await message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Ошибка: {e}")
 
-@app.on_message(filters.command("update", prefix) & filters.user(allow))
+@app.on_message(filters.command("update", prefix))
 async def update_bot(client: Client, message: Message):
+    if not await is_allowed(client, message):
+        return
+    
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -867,8 +901,11 @@ async def update_bot(client: Client, message: Message):
         if os.path.exists("settings/update_info.txt"):
             os.remove("settings/update_info.txt")
 
-@app.on_message(filters.command("im", prefixes=prefix) & filters.user(allow) & filters.reply)
+@app.on_message(filters.command("im", prefixes=prefix) & filters.reply)
 async def info_module(client: Client, message: Message):
+    if not await is_allowed(client, message):
+        return
+    
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -960,8 +997,11 @@ async def info_module(client: Client, message: Message):
         print(f"Ошибка при отправке фото: {e}")
         await message.edit_text(response)
 
-@app.on_message(filters.command("hidden", prefix) & filters.user(allow))
+@app.on_message(filters.command("hidden", prefix))
 async def hidden_module(client: Client, message: Message):
+    if not await is_allowed(client, message):
+        return
+    
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -1062,4 +1102,3 @@ modules_help['System'] = {
   "update": "Обновить бота",
   "restart": "Перезапустить бота",
 }
-
