@@ -9,7 +9,8 @@ from utils.func import *
 start_time = time.time()
 system = platform.system()
 
-global allow 
+allow = get_owners_from_db()
+
 
 async def is_owner(_, client, message):
     try:
@@ -23,24 +24,18 @@ owner_filter = filters.create(is_owner)
 
 def get_owners_from_db():
     try:
-        settings = load_settings()
+        settings = get_settings()
         return settings.get('allow', [])
     except:
         return []
 
-
 def update_owners_in_db(new_owners):
     try:
-        settings = load_settings()
-        settings['allow'] = new_owners
-        with open('settings/settings.json', 'w', encoding='utf-8') as f:
-            json.dump(settings, f, ensure_ascii=False, indent=4)
-        return True
+        return update_settings(allow=new_owners)
     except Exception as e:
         print(f"Ошибка при обновлении владельцев в БД: {e}")
         return False
 
-allow = get_owners_from_db()
 
 @app.on_message(filters.command("ping", prefix) & owner_filter)
 async def ping(client, message):
@@ -753,6 +748,7 @@ async def restart_bot(client: Client, message: Message):
 
 @app.on_message(filters.command("setprefix", prefix) & owner_filter)
 async def set_prefix(client: Client, message: Message):
+    global allow, prefix
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -778,6 +774,7 @@ async def set_prefix(client: Client, message: Message):
 
 @app.on_message(filters.command("owners", prefix) & owner_filter)
 async def manage_owners(client: Client, message: Message):
+    global allow
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -902,6 +899,7 @@ async def manage_owners(client: Client, message: Message):
 
 @app.on_message(filters.command("addowner", prefix) & owner_filter)
 async def add_owner(client: Client, message: Message):
+    global allow
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -948,6 +946,7 @@ async def add_owner(client: Client, message: Message):
 
 @app.on_message(filters.command("delowner", prefix) & owner_filter)
 async def del_owner(client: Client, message: Message):
+    global allow
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
@@ -1228,5 +1227,4 @@ modules_help['System'] = {
     "update": "Обновить бота",
     "restart": "Перезапустить бота",
 }
-
 
