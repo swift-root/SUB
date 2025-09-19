@@ -63,27 +63,17 @@ async def check_version(app: Client, prefix: str):
         return True
 
 DB_NAME = 'db/db.db'
-
 def init_db():
-
     os.makedirs("db", exist_ok=True)
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
-
     cursor.execute('''CREATE TABLE IF NOT EXISTS settings
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      prefix TEXT DEFAULT '.',
-                      allow TEXT DEFAULT '[]')''')
+                     (prefix TEXT, allow TEXT)''')
 
-
-    cursor.execute("SELECT COUNT(*) FROM settings")
-    count = cursor.fetchone()[0]
-    
-    if count == 0:
-
-        cursor.execute("INSERT INTO settings (prefix, allow) VALUES (?, ?)", 
-                      ('.', '[]'))
+    cursor.execute("SELECT * FROM settings")
+    if not cursor.fetchone():
+        cursor.execute("INSERT INTO settings VALUES (?, ?)", ('.', '[]'))
         conn.commit()
 
     conn.close()
@@ -91,74 +81,25 @@ def init_db():
 def get_settings():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    
-    try:
-        cursor.execute("SELECT prefix, allow FROM settings ORDER BY id LIMIT 1")
-        settings = cursor.fetchone()
-        
-        if settings:
-            return {
-                'prefix': settings[0],
-                'allow': eval(settings[1]) if settings[1] else []
-            }
-        else:
-
-            return {'prefix': '.', 'allow': []}
-            
-    except Exception as e:
-        print(f"Ошибка при получении настроек: {e}")
-        return {'prefix': '.', 'allow': []}
-    finally:
-        conn.close()
+    cursor.execute("SELECT prefix, allow FROM settings LIMIT 1")
+    settings = cursor.fetchone()
+    conn.close()
+    return {
+        'prefix': settings[0],
+        'allow': eval(settings[1])
+    }
 
 def update_settings(prefix=None, allow=None):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    
-    try:
 
-        cursor.execute("SELECT prefix, allow FROM settings ORDER BY id LIMIT 1")
-        current_settings = cursor.fetchone()
-        
-        if current_settings:
+    if prefix is not None:
+        cursor.execute("UPDATE settings SET prefix = ?", (prefix,))
+    if allow is not None:
+        cursor.execute("UPDATE settings SET allow = ?", (str(allow),))
 
-            new_prefix = prefix if prefix is not None else current_settings[0]
-            new_allow = str(allow) if allow is not None else current_settings[1]
-            
-            cursor.execute("UPDATE settings SET prefix = ?, allow = ? WHERE id = (SELECT MIN(id) FROM settings)", 
-                          (new_prefix, new_allow))
-        else:
-
-            new_prefix = prefix if prefix is not None else '.'
-            new_allow = str(allow) if allow is not None else '[]'
-            
-            cursor.execute("INSERT INTO settings (prefix, allow) VALUES (?, ?)", 
-                          (new_prefix, new_allow))
-        
-        conn.commit()
-        
-
-        if prefix is not None:
-            globals()['prefix'] = prefix
-        if allow is not None:
-            globals()['allow'] = allow
-            
-        return True
-        
-    except Exception as e:
-        print(f"Ошибка при обновлении настроек: {e}")
-        conn.rollback()
-        return False
-    finally:
-        conn.close()
-
-def get_owners_from_db():
-    settings = get_settings()
-    return settings.get('allow', [])
-
-def update_owners_in_db(new_owners):
-    return update_settings(allow=new_owners)
-
+    conn.commit()
+    conn.close()
 
 async def install_libraries(message, module_name, libs_str):
     libs = [lib.strip() for lib in libs_str.split(",")]
@@ -217,7 +158,6 @@ async def install_libraries(message, module_name, libs_str):
             "<i>Некоторые библиотеки не были установлены. Проверьте правильность названий и попробуйте установить их вручную.</i>"
         ]
         await msg.edit_text("\n".join(error_message))
-
 
 init_db()
 settings = get_settings()
@@ -294,8 +234,6 @@ def load_modules():
                 module.init_db = init_db
                 module.get_settings = get_settings
                 module.update_settings = update_settings
-                module.get_owners_from_db = get_owners_from_db
-                module.update_owners_in_db = update_owners_in_db
                 module.generate_random_name = generate_random_name
                 module.load_modules = load_modules
                 module.install_libraries = install_libraries
@@ -331,11 +269,11 @@ async def authorize():
             await app.stop()
             return
 
-        current_owners = get_owners_from_db()
-        if me.id not in current_owners:
-            current_owners.append(me.id)
-            update_owners_in_db(current_owners)
-            globals()['allow'] = current_owners
+        if me.id not in allow:
+            new_allow = allow.copy()
+            new_allow.append(me.id)
+            update_settings(allow=new_allow)
+            globals()['allow'] = new_allow
             print(f"[✅] ID {me.id} добавлен в список владельцев")
 
         return True
@@ -408,12 +346,11 @@ async def main():
                 await app.sign_in(phone, sent_code.phone_code_hash, code)
                 me = await app.get_me()
                 print(f"[✅] Успешная авторизация как {me.first_name}")
-                
-                current_owners = get_owners_from_db()
-                if me.id not in current_owners:
-                    current_owners.append(me.id)
-                    update_owners_in_db(current_owners)
-                    globals()['allow'] = current_owners
+                if me.id not in allow:
+                    new_allow = allow.copy()
+                    new_allow.append(me.id)
+                    update_settings(allow=new_allow)
+                    globals()['allow'] = new_allow
                     print(f"[✅] ID {me.id} добавлен в список владельцев")
         except Exception as e:
             print(f"[❌] Критическая ошибка при входе: {str(e)}")
