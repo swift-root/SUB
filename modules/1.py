@@ -9,10 +9,15 @@ from utils.func import *
 start_time = time.time()
 system = platform.system()
 
-@app.on_message(filters.command("ping", prefix) & filters.user(allow))
+@app.on_message(filters.command("ping", prefix) & allowed_users_filter())
 async def ping(client, message):
     starts_time = time.time()
-    await message.edit("<emoji id=5445284980978621387>🚀</emoji>")
+    
+    if is_owner(message.from_user.id):
+        await message.edit("<emoji id=5445284980978621387>🚀</emoji>")
+    else:
+        msg = await message.reply("<emoji id=5445284980978621387>🚀</emoji>")
+    
     ends_time = time.time()
     ping_time = (ends_time - starts_time) * 1000
     moscow_timezone = pytz.timezone('Europe/Moscow')
@@ -25,19 +30,22 @@ async def ping(client, message):
     force_premium = len(args) > 1 and args[1].lower() == 'prem'
     me = await client.get_me()
     has_premium = getattr(me, 'is_premium', False) or force_premium
+    
     if has_premium:
         text = f"<b><emoji id=5920515922505765329>⚡️</emoji> PING: <code>{ping_time:.2f} ms</code>\n<emoji id=6037268453759389862>⏲️</emoji> Аптайм: <code>{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}</code></b>"
     else:
         text = f"<b>🚀 PING: <code>{ping_time:.2f} ms</code>\n└─  Аптайм: <code>{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}</code></b>"
 
-    await message.edit(text)    
+    if is_owner(message.from_user.id):
+        await message.edit(text)
+    else:
+        await msg.edit(text)
 
-@app.on_message(filters.command('info', prefixes=prefix) & filters.user(allow))
+@app.on_message(filters.command('info', prefixes=prefix) & allowed_users_filter())
 async def info_command(client: Client, message: Message):
     await message.delete()
 
     try:
-        # Проверяем есть ли параметр prem
         args = message.text.split()
         force_premium = len(args) > 1 and args[1].lower() == 'prem'
         
@@ -146,18 +154,19 @@ async def info_command(client: Client, message: Message):
         print(error_msg)
         await client.send_message(message.chat.id, error_msg)
 
-@app.on_message(filters.command("help", prefix) & filters.user(allow))
+@app.on_message(filters.command("help", prefix) & allowed_users_filter())
 async def modules_help_command(client: Client, message: Message):
     args = message.text.split()
-    
-    force_premium = len(args) > 1 and args[-1].lower() == 'prem'  # Проверяем последний аргумент
-    
+    force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
     has_premium = getattr(me, 'is_premium', False) or force_premium
+
+    if is_owner(message.from_user.id):
+        response_message = message
+    else:
+        response_message = await message.reply("🔄 Обрабатываю запрос...")
     
-    # Если есть больше 1 аргумента и последний не 'prem', или есть только 'prem'
     if len(args) > 1 and not (len(args) == 2 and args[1].lower() == 'prem'):
-        # Получаем имя модуля (исключаем 'prem' если он есть)
         module_query = args[1].strip().lower() if args[1].lower() != 'prem' else args[2].strip().lower() if len(args) > 2 else ""
         
         exact_match = None
@@ -174,11 +183,9 @@ async def modules_help_command(client: Client, message: Message):
             module_info = modules_info[exact_match]
             commands = modules_help.get(exact_match, {})
 
-            # Определяем формат названия модуля
             name_format = "<b>{}</b>" if module_info.get("name", "").lower() == "system" else "<code>{}</code>"
             formatted_name = name_format.format(exact_match)
 
-            # Формируем ответ в зависимости от has_premium (учитывает force_premium!)
             if has_premium:
                 response = (
                     f"<emoji id=6030848053177486888>❓</emoji> <b>Помощь по модулю {formatted_name}</b>\n\n"
@@ -203,15 +210,11 @@ async def modules_help_command(client: Client, message: Message):
             try:
                 if module_info["img"]:
                     await message.delete()
-                    await message.reply_photo(
-                        module_info["img"],
-                        caption=response
-                    )
+                    await message.reply_photo(module_info["img"], caption=response)
                 else:
-                    await message.edit_text(response)
+                    await response_message.edit_text(response)
             except Exception as e:
-                print(f"Ошибка при отправке фото/сообщения: {e}")
-                await message.edit_text(response)
+                await response_message.edit_text(response)
                 
         elif partial_matches:
             if has_premium:
@@ -222,10 +225,10 @@ async def modules_help_command(client: Client, message: Message):
                 response = "<b>> Модуль не найден. Ближайшие совпадения:</b>\n\n"
                 for match in partial_matches:
                     response += f"  ▸ <code>{prefix}help {match}</code>\n"
-            await message.edit_text(response, disable_web_page_preview=True)
+            await response_message.edit_text(response, disable_web_page_preview=True)
             
         else:
-            await message.edit_text("Модуль не найден.", disable_web_page_preview=True)
+            await response_message.edit_text("Модуль не найден.", disable_web_page_preview=True)
             
     else:
         total_modules = len(modules_info)
@@ -272,9 +275,9 @@ async def modules_help_command(client: Client, message: Message):
                 else:
                     response += f"  ▸ <code>{module_name}</code> — {command_list}\n"
         
-        await message.edit_text(response, disable_web_page_preview=True)
+        await response_message.edit_text(response, disable_web_page_preview=True)
 
-@app.on_message(filters.command("lm", prefixes=prefix) & filters.user(allow))
+@app.on_message(filters.command("lm", prefixes=prefix) & allowed_users_filter())
 async def load_module(client: Client, message: Message):
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
@@ -282,13 +285,25 @@ async def load_module(client: Client, message: Message):
     has_premium = getattr(me, 'is_premium', False) or force_premium
 
     if not message.reply_to_message or not message.reply_to_message.document:
-        await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Ответьте на сообщение с файлом модуля (.py)")
+        if is_owner(message.from_user.id):
+            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Ответьте на сообщение с файлом модуля (.py)")
+        else:
+            await message.reply("<emoji id=5774077015388852135>❌</emoji> Ответьте на сообщение с файлом модуля (.py)")
         return
 
     document = message.reply_to_message.document
     if not document.file_name.endswith(".py"):
-        await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Файл должен быть с расширением .py")
+        if is_owner(message.from_user.id):
+            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Файл должен быть с расширением .py")
+        else:
+            await message.reply("<emoji id=5774077015388852135>❌</emoji> Файл должен быть с расширением .py")
         return
+
+    if is_owner(message.from_user.id):
+        response_message = message
+        await message.edit_text("<emoji id=5445284980978621387>🚀</emoji> Загружаю модуль...")
+    else:
+        response_message = await message.reply("<emoji id=5445284980978621387>🚀</emoji> Загружаю модуль...")
 
     temp_path = await message.reply_to_message.download()
 
@@ -325,12 +340,11 @@ async def load_module(client: Client, message: Message):
                                 desc = cmd_line.split('": "')[1].split('"')[0]
                                 meta_data["commands"][cmd] = desc
                 except Exception as e:
-                    print(f"⚠️ Ошибка парсинга команд: {e}")
                     meta_data["commands"] = {}
 
     if meta_data["name"] in modules_info:
         os.remove(temp_path)
-        await message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Модуль с названием <code>{meta_data['name']}</code> уже установлен!")
+        await response_message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Модуль с названием <code>{meta_data['name']}</code> уже установлен!")
         return
 
     modules_dir = "modules"
@@ -381,15 +395,14 @@ async def load_module(client: Client, message: Message):
             await message.delete()
             msg = await message.reply_photo(meta_data["img"], caption=response)
         else:
-            msg = await message.edit_text(response)
+            await response_message.edit_text(response)
     except Exception as e:
-        print(f"Ошибка при отправке фото: {e}")
-        msg = await message.edit_text(response)
+        await response_message.edit_text(response)
 
     if meta_data["libs"]:
-        await install_libraries(msg, meta_data["name"], meta_data["libs"])
+        await install_libraries(response_message, meta_data["name"], meta_data["libs"])
 
-@app.on_message(filters.command("dlm", prefixes=prefix) & filters.user(allow))
+@app.on_message(filters.command("dlm", prefixes=prefix) & allowed_users_filter())
 async def download_load_module(client: Client, message: Message):
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
@@ -397,8 +410,17 @@ async def download_load_module(client: Client, message: Message):
     has_premium = getattr(me, 'is_premium', False) or force_premium
 
     if len(message.command) < 2:
-        await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Укажите URL для скачивания модуля\nПример: <code>.dlm https://example.com/module.py</code>")   
+        if is_owner(message.from_user.id):
+            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Укажите URL для скачивания модуля\nПример: <code>.dlm https://example.com/module.py</code>")
+        else:
+            await message.reply("<emoji id=5774077015388852135>❌</emoji> Укажите URL для скачивания модуля\nПример: <code>.dlm https://example.com/module.py</code>")
         return
+
+    if is_owner(message.from_user.id):
+        response_message = message
+        await message.edit_text("<emoji id=5445284980978621387>🚀</emoji> Скачиваю модуль...")
+    else:
+        response_message = await message.reply("<emoji id=5445284980978621387>🚀</emoji> Скачиваю модуль...")
 
     url = message.command[1].strip()
 
@@ -407,7 +429,7 @@ async def download_load_module(client: Client, message: Message):
         file_name = os.path.basename(parsed_url.path)
 
         if not file_name.lower().endswith('.py'):
-            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Файл должен быть с расширением .py")
+            await response_message.edit_text("<emoji id=5774077015388852135>❌</emoji> Файл должен быть с расширением .py")
             return
 
         response = requests.get(url, stream=True)
@@ -457,12 +479,11 @@ async def download_load_module(client: Client, message: Message):
                                     desc = cmd_line.split('": "')[1].split('"')[0]
                                     meta_data["commands"][cmd] = desc
                     except Exception as e:
-                        print(f"⚠️ Ошибка парсинга команд: {e}")
                         meta_data["commands"] = {}
 
         if meta_data["name"] in modules_info:
             os.remove(temp_path)
-            await message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Модуль с названием <code>{meta_data['name']}</code> уже установлен!")
+            await response_message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Модуль с названием <code>{meta_data['name']}</code> уже установлен!")
             return
 
         modules_dir = "modules"
@@ -506,112 +527,27 @@ async def download_load_module(client: Client, message: Message):
                     response_text += f"   ▸ <code>{prefix}{cmd}</code> - {desc}\n"
 
         if name_changed:
-            response_text += f"\n[⚠️] <i>Файл с названием <code>{file_name}</code> уже был, поэтому название файла было изменено на <code>{new_filename}</code></i>"
-
+            response_text += f'\n[⚠️] <i>Файл с названием <code>{file_name}</code> уже был, поэтому название файла было изменено на <code>{new_filename}</code></i>'
         try:
             if meta_data["img"]:
                 await message.delete()
                 msg = await message.reply_photo(meta_data["img"], caption=response_text)
             else:
-                msg = await message.edit_text(response_text)
+                await response_message.edit_text(response_text)
         except Exception as e:
-            print(f"Ошибка при отправке фото: {e}")
-            msg = await message.edit_text(response_text)
+            await response_message.edit_text(response_text)
 
         if meta_data["libs"]:
-            await install_libraries(msg, meta_data["name"], meta_data["libs"])
+            await install_libraries(response_message, meta_data["name"], meta_data["libs"])
 
     except requests.exceptions.RequestException as e:
-        await message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Ошибка при скачивании файла: {str(e)}")
+        await response_message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Ошибка при скачивании файла: {str(e)}")
     except Exception as e:
-        await message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Произошла ошибка: {str(e)}")
+        await response_message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Произошла ошибка: {str(e)}")
         if 'temp_path' in locals() and os.path.exists(temp_path):
             os.remove(temp_path)
 
-@app.on_message(filters.command("um", prefixes=prefix) & filters.user(allow))
-async def download_module(client: Client, message: Message):
-    args = message.text.split()
-    force_premium = len(args) > 1 and args[-1].lower() == 'prem'
-    me = await client.get_me()
-    has_premium = getattr(me, 'is_premium', False) or force_premium
-
-    if len(message.command) < 2:
-        await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Укажите название модуля")
-        return
-    
-    user_input = message.command[1].strip()
-    modules_dir = "modules"
-    
-    filepath_by_filename = os.path.join(modules_dir, f"{user_input}.py")
-    file_exists = os.path.exists(filepath_by_filename)
-    
-    matches = []
-    for mod_name, info in modules_info.items():
-        if user_input.lower() == mod_name.lower():
-            matches = [(mod_name, info)]
-            break
-        elif user_input.lower() in mod_name.lower():
-            matches.append((mod_name, info))
-    
-    if file_exists and not matches:
-        await message.delete()
-        if has_premium:
-            await message.reply_document(
-                filepath_by_filename,
-                caption=f"<emoji id=5774022692642492953>✅</emoji> <b>Модуль</b> <code>{user_input}</code> <b>выгружен</b>"
-            )
-        else:
-            await message.reply_document(
-                filepath_by_filename,
-                caption=f"[✅] Модуль <code>{user_input}</code> выгружен"
-            )
-    elif not file_exists and len(matches) == 1:
-        mod_name, info = matches[0]
-        await message.delete()
-        if has_premium:
-            await message.reply_document(
-                info["path"],
-                caption=f"<emoji id=5774022692642492953>✅</emoji> <b>Модуль</b> <code>{mod_name}</code> <b>выгружен</b>"
-            )
-        else:
-            await message.reply_document(
-                info["path"],
-                caption=f"[✅] Модуль <code>{mod_name}</code> выгружен"
-            )
-    elif file_exists and len(matches) == 1:
-        mod_name, info = matches[0]
-        if os.path.normpath(info["path"]) == os.path.normpath(filepath_by_filename):
-            await message.delete()
-            if has_premium:
-                await message.reply_document(
-                    info["path"],
-                    caption=f"<emoji id=5774022692642492953>✅</emoji> <b>Модуль</b> <code>{mod_name}</code> <b>выгружен</b>"
-                )
-            else:
-                await message.reply_document(
-                    info["path"],
-                    caption=f"[✅] Модуль <code>{mod_name}</code> выгружен"
-                )
-        else:
-            await message.edit_text(
-                f"[⚠️] Найдено нечеткое совпадение: <code>{mod_name}</code>\n"
-                f"Вы действительно хотите выгрузить этот модуль?\n\n"
-                f"Да — <code>{prefix}um {mod_name}</code>"
-            )
-    elif len(matches) > 1:
-        if has_premium:
-            help_text = "<emoji id=6032850693348399258>🔎</emoji> <b>Точных совпадений не найдено! Выберите нужный вариант:</b>\n\n"
-        else:
-            help_text = "[🔎] Точных совпадений не найдено! Выберите нужный вариант:\n\n"
-        help_text += "\n".join([
-            f"▫️ <code>{mod_name}</code> (Имя файла: <code>{info['file_name']}</code>)" 
-            for mod_name, info in matches
-        ])
-        await message.edit_text(help_text)
-    else:
-        await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Модуль не найден")
-
-@app.on_message(filters.command("dm", prefixes=prefix) & filters.user(allow))
+@app.on_message(filters.command("dm", prefixes=prefix) & allowed_users_filter())
 async def delete_module(client: Client, message: Message):
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
@@ -620,19 +556,28 @@ async def delete_module(client: Client, message: Message):
 
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.edit_text("[❗] Укажите имя модуля или файла.")
+        if is_owner(message.from_user.id):
+            await message.edit_text("[❗] Укажите имя модуля или файла.")
+        else:
+            await message.reply("[❗] Укажите имя модуля или файла.")
         return
+
+    if is_owner(message.from_user.id):
+        response_message = message
+        await message.edit_text("<emoji id=5445284980978621387>🚀</emoji> Удаляю модуль...")
+    else:
+        response_message = await message.reply("<emoji id=5445284980978621387>🚀</emoji> Удаляю модуль...")
 
     user_input = args[1].strip()
 
     for mod_name, info in modules_info.items():
         if (user_input.lower() == mod_name.lower() and 
             (info.get("name", "").lower() == "system" or info["file_name"] == "1.py")):
-            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Этот модуль нельзя выгрузить!")
+            await response_message.edit_text("<emoji id=5774077015388852135>❌</emoji> Этот модуль нельзя выгрузить!")
             return
         if (f"{user_input}.py".lower() == info["file_name"].lower() and 
             (info.get("name", "").lower() == "system" or info["file_name"] == "1.py")):
-            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Этот модуль нельзя выгрузить!")
+            await response_message.edit_text("<emoji id=5774077015388852135>❌</emoji> Этот модуль нельзя выгрузить!")
             return
 
     deleted = False
@@ -643,7 +588,7 @@ async def delete_module(client: Client, message: Message):
         with open(filepath_by_filename, "r", encoding="utf-8") as f:
             content = f.read()
             if "#meta name: System" in content or filepath_by_filename.endswith("1.py"):
-                await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Этот модуль нельзя выгрузить!")
+                await response_message.edit_text("<emoji id=5774077015388852135>❌</emoji> Этот модуль нельзя выгрузить!")
                 return
 
         for mod_name, info in modules_info.items():
@@ -671,7 +616,7 @@ async def delete_module(client: Client, message: Message):
                 matches.append(mod_name)
 
         if len(matches) == 0:
-            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Не найден ни модуль, ни файл с таким именем.")
+            await response_message.edit_text("<emoji id=5774077015388852135>❌</emoji> Не найден ни модуль, ни файл с таким именем.")
             return
         elif len(matches) == 1:
             confirm_text = (
@@ -679,12 +624,12 @@ async def delete_module(client: Client, message: Message):
                 f"Вы действительно хотите удалить этот модуль?\n\n"
                 f"Да — {prefix}dm {matches[0]}"
             )
-            await message.edit_text(confirm_text)
+            await response_message.edit_text(confirm_text)
             return
         else:
             help_text = "<emoji id=6032850693348399258>🔎</emoji> Точных совпадений не найдено! Выберите нужный вариант:\n\n"
             help_text += "\n".join([f"▫️ <code>{mod}</code>" for mod in matches])
-            await message.edit_text(help_text)
+            await response_message.edit_text(help_text)
             return
 
     if deleted:
@@ -694,31 +639,38 @@ async def delete_module(client: Client, message: Message):
         load_modules()
         
         if has_premium:
-            await message.edit_text(f"<emoji id=5774022692642492953>✅</emoji> <b>Модуль</b> <code>{deleted_name}</code> <b>успешно удалён</b>\n<blockquote><i>Начинаю перезагрузку...</blockquote></i>")
+            await response_message.edit_text(f"<emoji id=5774022692642492953>✅</emoji> <b>Модуль</b> <code>{deleted_name}</code> <b>успешно удалён</b>\n<blockquote><i>Начинаю перезагрузку...</blockquote></i>")
         else:
-            await message.edit_text(f"[✅] Модуль <code>{deleted_name}</code> успешно удалён\n<blockquote><i>Начинаю перезагрузку...</blockquote></i>")
+            await response_message.edit_text(f"[✅] Модуль <code>{deleted_name}</code> успешно удалён\n<blockquote><i>Начинаю перезагрузку...</blockquote></i>")
         os.execv(sys.executable, [sys.executable] + sys.argv)
     else:
-        await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Не удалось удалить модуль")
+        await response_message.edit_text("<emoji id=5774077015388852135>❌</emoji> Не удалось удалить модуль")
 
-@app.on_message(filters.command("restart", prefix) & filters.user(allow))
+@app.on_message(filters.command("restart", prefix) & allowed_users_filter())
 async def restart_bot(client: Client, message: Message):
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
     me = await client.get_me()
     has_premium = getattr(me, 'is_premium', False) or force_premium
 
-    if has_premium:
-        await message.edit_text("<emoji id=5778647930038653243>✨</emoji> <b>Полная перезагрузка бота...</b>")
+    if is_owner(message.from_user.id):
+        response_message = message
+        if has_premium:
+            await message.edit_text("<emoji id=5778647930038653243>✨</emoji> <b>Полная перезагрузка бота...</b>")
+        else:
+            await message.edit_text("[🔄] Полная перезагрузка бота...")
     else:
-        await message.edit_text("[🔄] Полная перезагрузка бота...")
+        if has_premium:
+            response_message = await message.reply("<emoji id=5778647930038653243>✨</emoji> <b>Полная перезагрузка бота...</b>")
+        else:
+            response_message = await message.reply("[🔄] Полная перезагрузка бота...")
     
     with open("settings/restart_info.txt", "w") as f:
-        f.write(f"{message.chat.id}\n{message.id}\n{time.time()}")
+        f.write(f"{response_message.chat.id}\n{response_message.id}\n{time.time()}")
     
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
-@app.on_message(filters.command("setprefix", prefix) & filters.user(allow))
+@app.on_message(filters.command("setprefix", prefix) & allowed_users_filter())
 async def set_prefix(client: Client, message: Message):
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
@@ -726,24 +678,37 @@ async def set_prefix(client: Client, message: Message):
     has_premium = getattr(me, 'is_premium', False) or force_premium
 
     if len(message.command) < 2:
-        await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Укажите новый префикс")
+        if is_owner(message.from_user.id):
+            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Укажите новый префикс")
+        else:
+            await message.reply("<emoji id=5774077015388852135>❌</emoji> Укажите новый префикс")
         return
     
     new_prefix = message.command[1]
     if len(new_prefix) < 1 or len(new_prefix) > 3:
-        await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Префикс должен быть от 1 до 3 символов")
+        if is_owner(message.from_user.id):
+            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Префикс должен быть от 1 до 3 символов")
+        else:
+            await message.reply("<emoji id=5774077015388852135>❌</emoji> Префикс должен быть от 1 до 3 символов")
         return
     
     update_settings(prefix=new_prefix)
     globals()['prefix'] = new_prefix
     
-    if has_premium:
-        await message.edit_text(f"<emoji id=5774022692642492953>✅</emoji> <b>Префикс изменен на</b> <code>{new_prefix}</code>\n<blockquote><i>Начинаю перезагрузку...</blockquote></i>")
+    if is_owner(message.from_user.id):
+        response_message = message
+        if has_premium:
+            await message.edit_text(f"<emoji id=5774022692642492953>✅</emoji> <b>Префикс изменен на</b> <code>{new_prefix}</code>\n<blockquote><i>Начинаю перезагрузку...</blockquote></i>")
+        else:
+            await message.edit_text(f"[✅] Префикс изменен на <code>{new_prefix}</code>\n<blockquote><i>Начинаю перезагрузку...</blockquote></i>")
     else:
-        await message.edit_text(f"[✅] Префикс изменен на <code>{new_prefix}</code>\n<blockquote><i>Начинаю перезагрузку...</blockquote></i>")
+        if has_premium:
+            response_message = await message.reply(f"<emoji id=5774022692642492953>✅</emoji> <b>Префикс изменен на</b> <code>{new_prefix}</code>\n<blockquote><i>Начинаю перезагрузку...</blockquote></i>")
+        else:
+            response_message = await message.reply(f"[✅] Префикс изменен на <code>{new_prefix}</code>\n<blockquote><i>Начинаю перезагрузку...</blockquote></i>")
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
-@app.on_message(filters.command("addowner", prefix) & filters.user(allow))
+@app.on_message(filters.command("addowner", prefix) & allowed_users_filter())
 async def add_owner(client: Client, message: Message):
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
@@ -751,8 +716,18 @@ async def add_owner(client: Client, message: Message):
     has_premium = getattr(me, 'is_premium', False) or force_premium
 
     if not message.reply_to_message and len(message.command) < 2:
-        await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Укажите пользователя (ответом, ID или @username)")
+        if is_owner(message.from_user.id):
+            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Укажите пользователя (ответом, ID или @username)")
+        else:
+            await message.reply("<emoji id=5774077015388852135>❌</emoji> Укажите пользователя (ответом, ID или @username)")
         return
+
+    if is_owner(message.from_user.id):
+        response_message = message
+        await message.edit_text("<emoji id=5445284980978621387>🚀</emoji> Добавляю владельца...")
+    else:
+        response_message = await message.reply("<emoji id=5445284980978621387>🚀</emoji> Добавляю владельца...")
+
     try:
         if message.reply_to_message:
             user = message.reply_to_message.from_user
@@ -769,7 +744,7 @@ async def add_owner(client: Client, message: Message):
             user_id = user.id
 
         if user_id in allow:
-            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Этот пользователь уже является владельцем")
+            await response_message.edit_text("<emoji id=5774077015388852135>❌</emoji> Этот пользователь уже является владельцем")
             return
 
         new_allow = allow.copy()
@@ -778,14 +753,14 @@ async def add_owner(client: Client, message: Message):
         globals()['allow'] = new_allow
         
         if has_premium:
-            await message.edit_text(f"<emoji id=5774022692642492953>✅</emoji> <b>Пользователь</b> {user_name}[{user_id}] <b>добавлен в владельцы</b>")
+            await response_message.edit_text(f"<emoji id=5774022692642492953>✅</emoji> <b>Пользователь</b> {user_name}[{user_id}] <b>добавлен в владельцы</b>")
         else:
-            await message.edit_text(f"[✅] Пользователь {user_name}[{user_id}] добавлен в владельцы")
+            await response_message.edit_text(f"[✅] Пользователь {user_name}[{user_id}] добавлен в владельцы")
         load_modules()
     except Exception as e:
-        await message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Ошибка: {e}")
+        await response_message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Ошибка: {e}")
 
-@app.on_message(filters.command("delowner", prefix) & filters.user(allow))
+@app.on_message(filters.command("delowner", prefix) & allowed_users_filter())
 async def del_owner(client: Client, message: Message):
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
@@ -793,8 +768,17 @@ async def del_owner(client: Client, message: Message):
     has_premium = getattr(me, 'is_premium', False) or force_premium
 
     if not message.reply_to_message and len(message.command) < 2:
-        await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Укажите пользователя (ответом или ID)")
+        if is_owner(message.from_user.id):
+            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Укажите пользователя (ответом или ID)")
+        else:
+            await message.reply("<emoji id=5774077015388852135>❌</emoji> Укажите пользователя (ответом или ID)")
         return
+
+    if is_owner(message.from_user.id):
+        response_message = message
+        await message.edit_text("<emoji id=5445284980978621387>🚀</emoji> Удаляю владельца...")
+    else:
+        response_message = await message.reply("<emoji id=5445284980978621387>🚀</emoji> Удаляю владельца...")
 
     try:
         if message.reply_to_message:
@@ -808,7 +792,7 @@ async def del_owner(client: Client, message: Message):
                 user_id = int(user_input)
 
         if user_id not in allow:
-            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Этот пользователь не является владельцем")
+            await response_message.edit_text("<emoji id=5774077015388852135>❌</emoji> Этот пользователь не является владельцем")
             return
 
         new_allow = [uid for uid in allow if uid != user_id]
@@ -816,14 +800,14 @@ async def del_owner(client: Client, message: Message):
         globals()['allow'] = new_allow
         
         if has_premium:
-            await message.edit_text(f"<emoji id=5774022692642492953>✅</emoji> <b>Пользователь</b> [{user_id}] <b>удален из владельцев</b>")
+            await response_message.edit_text(f"<emoji id=5774022692642492953>✅</emoji> <b>Пользователь</b> [{user_id}] <b>удален из владельцев</b>")
         else:
-            await message.edit_text(f"[✅] Пользователь [{user_id}] удален из владельцев")
+            await response_message.edit_text(f"[✅] Пользователь [{user_id}] удален из владельцев")
 
     except Exception as e:
-        await message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Ошибка: {e}")
+        await response_message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Ошибка: {e}")
 
-@app.on_message(filters.command("update", prefix) & filters.user(allow))
+@app.on_message(filters.command("update", prefix) & allowed_users_filter())
 async def update_bot(client: Client, message: Message):
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
@@ -831,17 +815,27 @@ async def update_bot(client: Client, message: Message):
     has_premium = getattr(me, 'is_premium', False) or force_premium
 
     if not os.path.exists("utils/updater.py"):
-        await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Файл обновления не найден!")
+        if is_owner(message.from_user.id):
+            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Файл обновления не найден!")
+        else:
+            await message.reply("<emoji id=5774077015388852135>❌</emoji> Файл обновления не найден!")
         return
 
-    if has_premium:
-        await message.edit_text("<emoji id=5778647930038653243>✨</emoji> <b>Подготовка к обновлению...</b>")
+    if is_owner(message.from_user.id):
+        response_message = message
+        if has_premium:
+            await message.edit_text("<emoji id=5778647930038653243>✨</emoji> <b>Подготовка к обновлению...</b>")
+        else:
+            await message.edit_text("[🔄] Подготовка к обновлению...")
     else:
-        await message.edit_text("[🔄] Подготовка к обновлению...")
+        if has_premium:
+            response_message = await message.reply("<emoji id=5778647930038653243>✨</emoji> <b>Подготовка к обновлению...</b>")
+        else:
+            response_message = await message.reply("[🔄] Подготовка к обновлению...")
 
     old_version = await get_version()
     with open("settings/update_info.txt", "w") as f:
-        f.write(f"{message.chat.id}\n{message.id}\n{old_version}")
+        f.write(f"{response_message.chat.id}\n{response_message.id}\n{old_version}")
 
     try:
         python_exec = sys.executable
@@ -863,11 +857,11 @@ async def update_bot(client: Client, message: Message):
         os._exit(0)
 
     except Exception as e:
-        await message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Ошибка запуска обновления: {e}")
+        await response_message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Ошибка запуска обновления: {e}")
         if os.path.exists("settings/update_info.txt"):
             os.remove("settings/update_info.txt")
 
-@app.on_message(filters.command("im", prefixes=prefix) & filters.user(allow) & filters.reply)
+@app.on_message(filters.command("im", prefixes=prefix) & allowed_users_filter() & filters.reply)
 async def info_module(client: Client, message: Message):
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
@@ -876,8 +870,17 @@ async def info_module(client: Client, message: Message):
 
     reply = message.reply_to_message
     if not reply.document or not reply.document.file_name.endswith(".py"):
-        await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Ответьте на файл модуля с расширением .py")
+        if is_owner(message.from_user.id):
+            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Ответьте на файл модуля с расширением .py")
+        else:
+            await message.reply("<emoji id=5774077015388852135>❌</emoji> Ответьте на файл модуля с расширением .py")
         return
+
+    if is_owner(message.from_user.id):
+        response_message = message
+        await message.edit_text("<emoji id=5445284980978621387>🚀</emoji> Анализирую модуль...")
+    else:
+        response_message = await message.reply("<emoji id=5445284980978621387>🚀</emoji> Анализирую модуль...")
     
     temp_path = await reply.download()
     
@@ -927,7 +930,7 @@ async def info_module(client: Client, message: Message):
         if has_premium:
             response += f"<emoji id=6039802767931871481>⬇️</emoji> <b>Необходимы библиотеки:</b> <code>{meta_data['libs']}</code>\n"
         else:
-            response += f"> Необходимы библиотеки: <code>{meta_data['libs']}</code>\n"
+        response += f"> Необходимы библиотеки: <code>{meta_data['libs']}</code>\n"
     
     if has_premium:
         response += (
@@ -955,12 +958,11 @@ async def info_module(client: Client, message: Message):
             await message.delete()
             await message.reply_photo(meta_data["img"], caption=response)
         else:
-            await message.edit_text(response)
+            await response_message.edit_text(response)
     except Exception as e:
-        print(f"Ошибка при отправке фото: {e}")
-        await message.edit_text(response)
+        await response_message.edit_text(response)
 
-@app.on_message(filters.command("hidden", prefix) & filters.user(allow))
+@app.on_message(filters.command("hidden", prefix) & allowed_users_filter())
 async def hidden_module(client: Client, message: Message):
     args = message.text.split()
     force_premium = len(args) > 1 and args[-1].lower() == 'prem'
@@ -969,21 +971,39 @@ async def hidden_module(client: Client, message: Message):
 
     args = message.text.split(maxsplit=2)
     if len(args) < 3:
-        await message.edit_text(
-            "<emoji id=5774077015388852135>❌</emoji> Неправильный формат команды\n"
-            f"Используйте: <code>{prefix}hidden on/off название_модуля</code>"
-        )
+        if is_owner(message.from_user.id):
+            await message.edit_text(
+                "<emoji id=5774077015388852135>❌</emoji> Неправильный формат команды\n"
+                f"Используйте: <code>{prefix}hidden on/off название_модуля</code>"
+            )
+        else:
+            await message.reply(
+                "<emoji id=5774077015388852135>❌</emoji> Неправильный формат команды\n"
+                f"Используйте: <code>{prefix}hidden on/off название_модуля</code>"
+            )
         return
     
     action = args[1].lower()
     module_query = args[2].strip()
     
     if action not in ["on", "off"]:
-        await message.edit_text(
-            "<emoji id=5774077015388852135>❌</emoji> Неправильное действие\n"
-            f"Используйте: <code>{prefix}hidden on/off название_модуля</code>"
-        )
+        if is_owner(message.from_user.id):
+            await message.edit_text(
+                "<emoji id=5774077015388852135>❌</emoji> Неправильное действие\n"
+                f"Используйте: <code>{prefix}hidden on/off название_модуля</code>"
+            )
+        else:
+            await message.reply(
+                "<emoji id=5774077015388852135>❌</emoji> Неправильное действие\n"
+                f"Используйте: <code>{prefix}hidden on/off название_модуля</code>"
+            )
         return
+    
+    if is_owner(message.from_user.id):
+        response_message = message
+        await message.edit_text("<emoji id=5445284980978621387>🚀</emoji> Изменяю статус модуля...")
+    else:
+        response_message = await message.reply("<emoji id=5445284980978621387>🚀</emoji> Изменяю статус модуля...")
     
     exact_match = None
     partial_matches = []
@@ -996,7 +1016,7 @@ async def hidden_module(client: Client, message: Message):
             partial_matches.append(name)
     
     if not exact_match and not partial_matches:
-        await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Модуль не найден")
+        await response_message.edit_text("<emoji id=5774077015388852135>❌</emoji> Модуль не найден")
         return
     
     if not exact_match and len(partial_matches) > 1:
@@ -1005,7 +1025,7 @@ async def hidden_module(client: Client, message: Message):
         else:
             response = "[🔎] Найдено несколько совпадений:\n\n"
         response += "\n".join([f"» <code>{match}</code>" for match in partial_matches])
-        await message.edit_text(response)
+        await response_message.edit_text(response)
         return
     
     module_name = exact_match if exact_match else partial_matches[0]
@@ -1039,11 +1059,11 @@ async def hidden_module(client: Client, message: Message):
         
         status = "скрыт" if action == "on" else "показан"
         if has_premium:
-            await message.edit_text(f"<emoji id=5774022692642492953>✅</emoji> <b>Модуль</b> <code>{module_name}</code> <b>теперь {status} в списке помощи</b>")
+            await response_message.edit_text(f"<emoji id=5774022692642492953>✅</emoji> <b>Модуль</b> <code>{module_name}</code> <b>теперь {status} в списке помощи</b>")
         else:
-            await message.edit_text(f"[✅] Модуль <code>{module_name}</code> теперь {status} в списке помощи")
+            await response_message.edit_text(f"[✅] Модуль <code>{module_name}</code> теперь {status} в списке помощи")
     except Exception as e:
-        await message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Ошибка при изменении модуля: {e}")
+        await response_message.edit_text(f"<emoji id=5774077015388852135>❌</emoji> Ошибка при изменении модуля: {e}")
 
 
 modules_help['System'] = {
@@ -1062,5 +1082,4 @@ modules_help['System'] = {
   "update": "Обновить бота",
   "restart": "Перезапустить бота",
 }
-
 
