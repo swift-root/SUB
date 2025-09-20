@@ -992,8 +992,8 @@ async def hidden_module(client: Client, message: Message):
                 "<emoji id=5774077015388852135>❌</emoji> Неправильное действие\n"
                 f"Используйте: <code>{prefix}hidden on/off название_модуля</code>"
             )
-        else:
-            await message.reply(
+    else:
+        await message.reply(
                 "<emoji id=5774077015388852135>❌</emoji> Неправильное действие\n"
                 f"Используйте: <code>{prefix}hidden on/off название_модуля</code>"
             )
@@ -1082,5 +1082,6 @@ modules_help['System'] = {
   "update": "Обновить бота",
   "restart": "Перезапустить бота",
 }
+
 
 
