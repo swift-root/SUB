@@ -1,5 +1,25 @@
 from utils.imports import *
-import io
+from swift import get_settings
+
+def owner_filter():
+    async def func(_, __, message: Message):
+        settings = get_settings()
+        return message.from_user and message.from_user.id == settings['owner_id']
+    
+    return filters.create(func, "OwnerFilter")
+
+def is_owner(user_id: int) -> bool:
+    settings = get_settings()
+    return user_id == settings['owner_id']
+
+def allowed_users_filter():
+    async def func(_, __, message: Message):
+        settings = get_settings()
+        return (message.from_user and 
+                (message.from_user.id == settings['owner_id'] or 
+                 message.from_user.id in settings['allow']))
+    
+    return filters.create(func, "AllowedUsersFilter")
 
 async def answer(message: Message, text: str = None, photo: bool = False, response: str = None):
     if text:
@@ -8,21 +28,21 @@ async def answer(message: Message, text: str = None, photo: bool = False, respon
         await message.reply_photo(photo=response)
 
 ALLOWED_MIME_TYPES = [
-    "text/plain",  # .txt
-    "application/x-python",  # .py
-    "application/javascript",  # .js
-    "application/json",  # .json
-    "text/html",  # .html
-    "text/css",  # .css
-    "text/csv",  # .csv
-    "application/xml",  # .xml
-    "text/markdown",  # .md
+    "text/plain",
+    "application/x-python",
+    "application/javascript",
+    "application/json",
+    "text/html",
+    "text/css",
+    "text/csv",
+    "application/xml",
+    "text/markdown",
 ]
 
 ALLOWED_EXTENSIONS = [".txt", ".py", ".js", ".json", ".html", ".css", ".csv", ".xml", ".md"]
 
 async def read_text_file(client, message, file):
-    if file.file_size > 10 * 1024 * 1024:  # Лимит 10 МБ
+    if file.file_size > 10 * 1024 * 1024:
         await message.edit("[❗️] Файл слишком большой для обработки.")
         return None
 
@@ -37,10 +57,8 @@ async def read_text_file(client, message, file):
         file_data = io.BytesIO()
         await client.download_media(file, file_name=file_data)
         
-        # Получаем содержимое как байты
         file_bytes = file_data.getvalue()
         
-        # Пробуем разные кодировки
         try:
             file_content = file_bytes.decode("utf-8")
         except UnicodeDecodeError:
