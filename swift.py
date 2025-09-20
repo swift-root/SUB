@@ -63,33 +63,19 @@ async def check_version(app: Client, prefix: str):
         return True
 
 DB_NAME = 'db/db.db'
-def init_db():
-    os.makedirs("db", exist_ok=True)
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-
-    cursor.execute('''CREATE TABLE IF NOT EXISTS settings
-                     (prefix TEXT, allow TEXT)''')
-
-    cursor.execute("SELECT * FROM settings")
-    if not cursor.fetchone():
-        cursor.execute("INSERT INTO settings VALUES (?, ?)", ('.', '[]'))
-        conn.commit()
-
-    conn.close()
-
 def get_settings():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT prefix, allow FROM settings LIMIT 1")
+    cursor.execute("SELECT prefix, allow, owner_id FROM settings LIMIT 1")
     settings = cursor.fetchone()
     conn.close()
     return {
         'prefix': settings[0],
-        'allow': eval(settings[1])
+        'allow': eval(settings[1]),
+        'owner_id': settings[2] if len(settings) > 2 else None
     }
 
-def update_settings(prefix=None, allow=None):
+def update_settings(prefix=None, allow=None, owner_id=None):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
@@ -97,9 +83,25 @@ def update_settings(prefix=None, allow=None):
         cursor.execute("UPDATE settings SET prefix = ?", (prefix,))
     if allow is not None:
         cursor.execute("UPDATE settings SET allow = ?", (str(allow),))
+    if owner_id is not None:
+        cursor.execute("UPDATE settings SET owner_id = ?", (owner_id,))
 
     conn.commit()
     conn.close()
+
+def init_db():
+    os.makedirs("db", exist_ok=True)
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute('''CREATE TABLE IF NOT EXISTS settings
+                     (prefix TEXT, allow TEXT, owner_id INTEGER)''')
+
+    cursor.execute("SELECT * FROM settings")
+    if not cursor.fetchone():
+        cursor.execute("INSERT INTO settings VALUES (?, ?, ?)", ('.', '[]', None))
+        conn.commit()
+
 
 async def install_libraries(message, module_name, libs_str):
     libs = [lib.strip() for lib in libs_str.split(",")]
@@ -263,6 +265,13 @@ async def authorize():
         await app.start()
         me = await app.get_me()
         print(f"[✅] Авторизован как {me.first_name} (ID: {me.id})")
+        
+        # Устанавливаем владельца если его еще нет
+        settings = get_settings()
+        if settings['owner_id'] is None:
+            update_settings(owner_id=me.id)
+            print(f"[✅] ID {me.id} установлен как владелец бота")
+        
         version_status = await check_version(app, prefix)
         if version_status is False:
             print("[❌] Критическая ошибка версии, завершаю работу")
@@ -274,7 +283,7 @@ async def authorize():
             new_allow.append(me.id)
             update_settings(allow=new_allow)
             globals()['allow'] = new_allow
-            print(f"[✅] ID {me.id} добавлен в список владельцев")
+            print(f"[✅] ID {me.id} добавлен в список разрешенных пользователей")
 
         return True
     except Exception as e:
