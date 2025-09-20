@@ -547,6 +547,108 @@ async def download_load_module(client: Client, message: Message):
         if 'temp_path' in locals() and os.path.exists(temp_path):
             os.remove(temp_path)
 
+@app.on_message(filters.command("um", prefixes=prefix) & allowed_users_filter())
+async def download_module(client: Client, message: Message):
+    args = message.text.split()
+    force_premium = len(args) > 1 and args[-1].lower() == 'prem'
+    me = await client.get_me()
+    has_premium = getattr(me, 'is_premium', False) or force_premium
+
+    if len(message.command) < 2:
+        if is_owner(message.from_user.id):
+            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Укажите название модуля")
+        else:
+            await message.reply("<emoji id=5774077015388852135>❌</emoji> Укажите название модуля")
+        return
+    
+    user_input = message.command[1].strip()
+    modules_dir = "modules"
+    
+    filepath_by_filename = os.path.join(modules_dir, f"{user_input}.py")
+    file_exists = os.path.exists(filepath_by_filename)
+    
+    matches = []
+    for mod_name, info in modules_info.items():
+        if user_input.lower() == mod_name.lower():
+            matches = [(mod_name, info)]
+            break
+        elif user_input.lower() in mod_name.lower():
+            matches.append((mod_name, info))
+    
+    if file_exists and not matches:
+        if is_owner(message.from_user.id):
+            await message.delete()
+        if has_premium:
+            await message.reply_document(
+                filepath_by_filename,
+                caption=f"<emoji id=5774022692642492953>✅</emoji> <b>Модуль</b> <code>{user_input}</code> <b>выгружен</b>"
+            )
+        else:
+            await message.reply_document(
+                filepath_by_filename,
+                caption=f"[✅] Модуль <code>{user_input}</code> выгружен"
+            )
+    elif not file_exists and len(matches) == 1:
+        mod_name, info = matches[0]
+        if is_owner(message.from_user.id):
+            await message.delete()
+        if has_premium:
+            await message.reply_document(
+                info["path"],
+                caption=f"<emoji id=5774022692642492953>✅</emoji> <b>Модуль</b> <code>{mod_name}</code> <b>выгружен</b>"
+            )
+        else:
+            await message.reply_document(
+                info["path"],
+                caption=f"[✅] Модуль <code>{mod_name}</code> выгружен"
+            )
+    elif file_exists and len(matches) == 1:
+        mod_name, info = matches[0]
+        if os.path.normpath(info["path"]) == os.path.normpath(filepath_by_filename):
+            if is_owner(message.from_user.id):
+                await message.delete()
+            if has_premium:
+                await message.reply_document(
+                    info["path"],
+                    caption=f"<emoji id=5774022692642492953>✅</emoji> <b>Модуль</b> <code>{mod_name}</code> <b>выгружен</b>"
+                )
+            else:
+                await message.reply_document(
+                    info["path"],
+                    caption=f"[✅] Модуль <code>{mod_name}</code> выгружен"
+                )
+        else:
+            if message.from_user.id == owner_id:
+                await message.edit_text(
+                    f"[⚠️] Найдено нечеткое совпадение: <code>{mod_name}</code>\n"
+                    f"Вы действительно хотите выгрузить этот модуль?\n\n"
+                    f"Да — <code>{prefix}um {mod_name}</code>"
+                )
+            else:
+                await message.reply(
+                    f"[⚠️] Найдено нечеткое совпадение: <code>{mod_name}</code>\n"
+                    f"Вы действительно хотите выгрузить этот модуль?\n\n"
+                    f"Да — <code>{prefix}um {mod_name}</code>"
+                )
+    elif len(matches) > 1:
+        if has_premium:
+            help_text = "<emoji id=6032850693348399258>🔎</emoji> <b>Точных совпадений не найдено! Выберите нужный вариант:</b>\n\n"
+        else:
+            help_text = "[🔎] Точных совпадений не найдено! Выберите нужный вариант:\n\n"
+        help_text += "\n".join([
+            f"▫️ <code>{mod_name}</code> (Имя файла: <code>{info['file_name']}</code>)" 
+            for mod_name, info in matches
+        ])
+        if is_owner(message.from_user.id):
+            await message.edit_text(help_text)
+        else:
+            await message.reply(help_text)
+    else:
+        if is_owner(message.from_user.id):
+            await message.edit_text("<emoji id=5774077015388852135>❌</emoji> Модуль не найден")
+        else:
+            await message.reply("<emoji id=5774077015388852135>❌</emoji> Модуль не найден")
+
 @app.on_message(filters.command("dm", prefixes=prefix) & allowed_users_filter())
 async def delete_module(client: Client, message: Message):
     args = message.text.split()
@@ -1082,6 +1184,7 @@ modules_help['System'] = {
   "update": "Обновить бота",
   "restart": "Перезапустить бота",
 }
+
 
 
 
