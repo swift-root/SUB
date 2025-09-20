@@ -929,7 +929,7 @@ async def info_module(client: Client, message: Message):
     if meta_data["libs"]:
         if has_premium:
             response += f"<emoji id=6039802767931871481>⬇️</emoji> <b>Необходимы библиотеки:</b> <code>{meta_data['libs']}</code>\n"
-        else:
+    else:
         response += f"> Необходимы библиотеки: <code>{meta_data['libs']}</code>\n"
     
     if has_premium:
@@ -1082,6 +1082,7 @@ modules_help['System'] = {
   "update": "Обновить бота",
   "restart": "Перезапустить бота",
 }
+
 
 
 
