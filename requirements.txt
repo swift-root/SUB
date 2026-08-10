@@ -1,0 +1,8 @@
+psutil>=5.9.0
+requests>=2.28.0
+pytz>=2023.3
+GitPython>=3.1.0
+pyrogram>=2.0.0
+tgcrypto>=1.2.3
+colorama>=0.4.6
+art>=5.9
